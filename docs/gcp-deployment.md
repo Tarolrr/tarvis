@@ -34,14 +34,16 @@ Running Tarvis on GCP provides:
 - `gcloud` CLI installed on your local machine
 - Basic SSH knowledge
 - API credentials (Telegram bot token, AI provider API keys)
+- Pre-built OpenClaw image in Container Registry (see [Building OpenClaw Image](building-openclaw-image.md) if you need to build from source)
 
 ## Cost Estimate
 
-- **e2-micro** (free tier eligible): 2 vCPU, 1GB RAM - Free for 1 instance
-- **e2-small**: 2 vCPU, 2GB RAM - ~$13/month
-- **e2-medium**: 2 vCPU, 4GB RAM - ~$27/month
+- **e2-small**: 2 vCPU, 2GB RAM - ~$13/month (recommended for runtime)
+- **e2-medium**: 2 vCPU, 4GB RAM - ~$27/month (only needed for building from source)
 
-**Recommended**: Start with e2-small (2GB RAM)
+**Recommended**: e2-small (2GB RAM) is sufficient when using pre-built images
+
+**Note**: e2-micro (1GB RAM) is NOT recommended as it lacks sufficient memory for OpenClaw
 
 ## Step-by-Step Deployment
 
@@ -60,16 +62,17 @@ gcloud auth login
 ### 2. Create GCP Project
 
 ```bash
-# Create project
-gcloud projects create tarvis-assistant --name="Tarvis Assistant"
+# Create project (use unique ID if tarvis-assistant is taken)
+gcloud projects create tarvis-assistant-$(date +%s) --name="Tarvis Assistant"
 
-# Set as active project
-gcloud config set project tarvis-assistant
+# Set as active project (replace with your actual project ID)
+gcloud config set project YOUR_PROJECT_ID
 
 # Enable billing (do this in console: https://console.cloud.google.com/billing)
 
-# Enable Compute Engine API
+# Enable required APIs
 gcloud services enable compute.googleapis.com
+gcloud services enable containerregistry.googleapis.com
 ```
 
 ### 3. Create the VM
@@ -125,11 +128,11 @@ docker --version
 docker compose version
 ```
 
-### 6. Clone OpenClaw Repository
+### 6. Create Project Directory
 
 ```bash
-git clone https://github.com/openclaw/openclaw.git
-cd openclaw
+mkdir -p ~/tarvis
+cd ~/tarvis
 ```
 
 ### 7. Create Persistent Directories
@@ -141,89 +144,82 @@ mkdir -p ~/.openclaw/workspace
 
 ### 8. Configure Environment Variables
 
-Create `.env` file:
+**Generate secure tokens first**:
+```bash
+# Generate gateway token
+GATEWAY_TOKEN=$(openssl rand -hex 32)
+echo "Gateway Token: $GATEWAY_TOKEN"
+
+# Generate keyring password
+KEYRING_PASSWORD=$(openssl rand -hex 32)
+echo "Keyring Password: $KEYRING_PASSWORD"
+
+# Get your project ID
+PROJECT_ID=$(gcloud config get-value project)
+echo "Project ID: $PROJECT_ID"
+```
+
+Create `.env` file with your values:
 
 ```bash
-cat > .env << 'EOF'
-OPENCLAW_IMAGE=openclaw:latest
-OPENCLAW_GATEWAY_TOKEN=CHANGE_ME_NOW
+cat > .env << EOF
+OPENCLAW_IMAGE=gcr.io/${PROJECT_ID}/openclaw:latest
+OPENCLAW_GATEWAY_TOKEN=${GATEWAY_TOKEN}
 OPENCLAW_GATEWAY_BIND=lan
 OPENCLAW_GATEWAY_PORT=18789
 OPENCLAW_CONFIG_DIR=/home/$USER/.openclaw
 OPENCLAW_WORKSPACE_DIR=/home/$USER/.openclaw/workspace
-GOG_KEYRING_PASSWORD=CHANGE_ME_NOW
+GOG_KEYRING_PASSWORD=${KEYRING_PASSWORD}
 XDG_CONFIG_HOME=/home/node/.openclaw
 EOF
 ```
 
-**Generate secure tokens**:
-```bash
-# Generate gateway token
-echo "OPENCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32)"
-
-# Generate keyring password
-echo "GOG_KEYRING_PASSWORD=$(openssl rand -hex 32)"
-```
-
-Update `.env` with these tokens.
+**Save these tokens securely** - you'll need the gateway token for configuration.
 
 ### 9. Create Docker Compose Configuration
 
-The OpenClaw repo includes `docker-compose.yml`. Verify it exists:
+Create `docker-compose.yml`:
 
 ```bash
-cat docker-compose.yml
-```
-
-If you need to customize, ensure it has:
-- Port binding to `127.0.0.1:18789` (for SSH tunnel access)
-- Volume mounts for persistence
-- Required environment variables
-
-### 10. Customize Dockerfile for Required Binaries
-
-Edit `Dockerfile` to include `gog` (for Gmail):
-
-```bash
-cat > Dockerfile << 'EOF'
-FROM node:22-bookworm
-
-RUN apt-get update && apt-get install -y socat && rm -rf /var/lib/apt/lists/*
-
-# Install gog for Gmail integration
-RUN curl -L https://github.com/steipete/gog/releases/latest/download/gog_Linux_x86_64.tar.gz \
-  | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/gog
-
-# Install goplaces (optional, for Google Places)
-RUN curl -L https://github.com/steipete/goplaces/releases/latest/download/goplaces_Linux_x86_64.tar.gz \
-  | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/goplaces
-
-WORKDIR /app
-
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY ui/package.json ./ui/package.json
-COPY scripts ./scripts
-
-RUN corepack enable
-RUN pnpm install --frozen-lockfile
-
-COPY . .
-
-RUN pnpm build
-RUN pnpm ui:install
-RUN pnpm ui:build
-
-ENV NODE_ENV=production
-
-CMD ["node","dist/index.js"]
+cat > docker-compose.yml << 'EOF'
+services:
+  openclaw-gateway:
+    image: ${OPENCLAW_IMAGE}
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD}
+      XDG_CONFIG_HOME: ${XDG_CONFIG_HOME}
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+    ports:
+      - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+      - "127.0.0.1:${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+    init: true
+    restart: unless-stopped
+    command:
+      [
+        "node",
+        "dist/index.js",
+        "gateway",
+        "--bind",
+        "${OPENCLAW_GATEWAY_BIND:-lan}",
+        "--port",
+        "18789",
+      ]
 EOF
 ```
 
-### 11. Build and Launch
+### 10. Pull and Launch Pre-built Image
 
 ```bash
-# Build the Docker image (takes 5-10 minutes)
-docker compose build
+# Configure Docker to use gcloud authentication
+gcloud auth configure-docker --quiet
+
+# Pull the pre-built image
+docker compose pull
 
 # Start the gateway
 docker compose up -d openclaw-gateway
@@ -232,9 +228,9 @@ docker compose up -d openclaw-gateway
 docker compose logs -f openclaw-gateway
 ```
 
-Look for: `[gateway] listening on ws://0.0.0.0:18789`
+**Expected output**: Container will start but show "Missing config" message - this is normal, we'll configure it next.
 
-### 12. Initial Configuration (On VM)
+### 11. Initial Configuration (On VM)
 
 Run onboarding inside the container:
 
@@ -246,7 +242,7 @@ This will guide you through:
 - Model provider setup (OpenAI, Anthropic, Google, etc.)
 - Authentication configuration
 
-### 13. Configure Telegram
+### 12. Configure Telegram
 
 Create/edit `~/.openclaw/openclaw.json` on the VM:
 
@@ -290,7 +286,7 @@ Restart the container:
 docker compose restart openclaw-gateway
 ```
 
-### 14. Configure Gmail Integration
+### 13. Configure Gmail Integration
 
 Inside the container, run:
 
@@ -308,7 +304,7 @@ This requires:
 - Pub/Sub API enabled
 - Tailscale for webhook endpoint (or manual setup)
 
-### 15. Access from Your Laptop
+### 14. Access from Your Laptop
 
 **Option A: SSH Tunnel (Recommended)**
 

@@ -169,6 +169,7 @@ tarvis/
 ├── docs/                       # Documentation
 │   ├── setup-guide.md         # Detailed local setup
 │   ├── gcp-deployment.md      # GCP deployment guide
+│   ├── building-openclaw-image.md  # Building Docker image from source
 │   ├── configuration.md       # Configuration reference
 │   ├── integrations.md        # Integration guides
 │   └── security.md            # Security best practices
