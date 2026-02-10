@@ -31,7 +31,19 @@ Tarvis is built on [OpenClaw](https://openclaw.ai/), an open-source personal AI 
 - Telegram account
 - Tailscale (for secure remote access)
 
-## Installation
+## Deployment Options
+
+Tarvis can run in two modes:
+
+### Option 1: Local Machine (Quick Start)
+Run Tarvis on your local machine for testing and development.
+
+### Option 2: GCP Cloud (Autonomous 24/7)
+Deploy Tarvis to Google Cloud Platform for always-on autonomous operation.
+
+**Recommended**: Start local, then deploy to GCP for production use.
+
+## Local Installation
 
 ### 1. Install OpenClaw
 
@@ -89,6 +101,43 @@ openclaw gateway --port 18789
 
 Access the Control UI at: http://127.0.0.1:18789/
 
+## GCP Deployment (Autonomous 24/7)
+
+Deploy Tarvis to run autonomously on Google Cloud Platform.
+
+### Quick Deploy
+
+```bash
+./scripts/deploy-gcp.sh
+```
+
+This automated script will:
+1. Create a GCP project
+2. Set up a Compute Engine VM (e2-small, ~$13/month)
+3. Install Docker and OpenClaw
+4. Guide you through configuration
+
+### Manual Deployment
+
+See the comprehensive guide: [docs/gcp-deployment.md](docs/gcp-deployment.md)
+
+### Integrations on GCP
+
+- **Telegram**: Works out of the box (bot connects to Telegram servers)
+- **Gmail**: Requires Pub/Sub setup (automated via wizard)
+- **Obsidian**: Multiple options for remote access (see [scripts/obsidian-remote.md](scripts/obsidian-remote.md))
+
+### Access Your GCP Instance
+
+```bash
+# SSH tunnel to Control UI
+gcloud compute ssh tarvis-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:18789
+
+# Then open: http://127.0.0.1:18789/
+```
+
+Or use Tailscale for permanent access.
+
 ## Configuration
 
 Configuration is stored in `~/.openclaw/openclaw.json`. See `docs/configuration.md` for detailed setup options.
@@ -114,13 +163,23 @@ openclaw doctor
 
 ```
 tarvis/
-├── README.md              # This file
-├── docs/                  # Documentation
-│   ├── setup-guide.md    # Detailed setup instructions
-│   ├── configuration.md  # Configuration reference
-│   └── integrations.md   # Integration guides
-├── scripts/              # Helper scripts
-└── .gitignore           # Git ignore rules
+├── README.md                    # This file
+├── QUICKSTART.md               # Quick start guide
+├── NEXT_STEPS.md               # Next steps after setup
+├── docs/                       # Documentation
+│   ├── setup-guide.md         # Detailed local setup
+│   ├── gcp-deployment.md      # GCP deployment guide
+│   ├── configuration.md       # Configuration reference
+│   ├── integrations.md        # Integration guides
+│   └── security.md            # Security best practices
+├── scripts/                    # Helper scripts
+│   ├── install.sh             # Install OpenClaw locally
+│   ├── deploy-gcp.sh          # Deploy to GCP
+│   ├── start.sh               # Start local gateway
+│   ├── status.sh              # Check system status
+│   ├── setup-telegram.sh      # Configure Telegram
+│   └── obsidian-remote.md     # Obsidian remote access guide
+└── .gitignore                 # Git ignore rules
 ```
 
 ## Security
