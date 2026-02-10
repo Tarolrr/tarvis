@@ -271,23 +271,110 @@ docker compose restart openclaw-gateway
 
 ### 13. Configure Gmail Integration
 
-Inside the container, run:
+**Step 1: Create OAuth Credentials in Google Cloud Console**
+
+1. Go to https://console.cloud.google.com/apis/credentials
+2. Create project (if you don't have one) or select your existing project
+3. Enable required APIs:
+   - Go to API Library
+   - Search and enable: Gmail API, Google Calendar API, Google Drive API
+4. Create OAuth credentials:
+   - Click "Create Credentials" → "OAuth client ID"
+   - Application type: "Desktop app"
+   - Name it (e.g., "OpenClaw Gmail Access")
+   - Click "Create"
+5. Download the JSON credentials file
+
+**Step 2: Upload Credentials to VM and Authenticate**
 
 ```bash
-# Authenticate gog with your Gmail
-docker compose exec openclaw-gateway gog auth
+# Upload credentials file to VM
+gcloud compute scp /path/to/downloaded-credentials.json tarvis-gateway:~/gmail-credentials.json --zone=us-central1-a
 
-# Set up Gmail webhook
+# SSH into VM
+gcloud compute ssh tarvis-gateway --zone=us-central1-a
+
+# Copy credentials into container's config directory
+sudo cp ~/gmail-credentials.json ~/.openclaw/gmail-credentials.json
+sudo chown tarolrr:tarolrr ~/.openclaw/gmail-credentials.json
+
+# Authenticate with gog
+cd openclaw
+docker compose exec openclaw-gateway gog auth credentials /home/node/.openclaw/gmail-credentials.json
+docker compose exec openclaw-gateway gog auth add tarolrr@gmail.com --services gmail,calendar,drive
+```
+
+This will provide a browser auth URL. Open it, complete the OAuth flow, and paste the authorization code back.
+
+**Step 3: Set up Gmail Webhook (Optional)**
+
+```bash
 docker compose exec openclaw-gateway node dist/index.js webhooks gmail setup \
-  --account your-email@gmail.com
+  --account tarolrr@gmail.com
 ```
 
 This requires:
-- Google Cloud project (can be same as VM project)
-- Pub/Sub API enabled
+- Google Cloud Pub/Sub API enabled
 - Tailscale for webhook endpoint (or manual setup)
 
-### 14. Access from Your Laptop
+### 14. Configure Obsidian Integration
+
+**Step 1: Install Obsidian REST API Plugin (on your local machine)**
+
+1. Open Obsidian Settings → Community plugins
+2. Browse → search "Local REST API"
+3. Install + Enable
+
+**Step 2: Configure the Plugin**
+
+1. Settings → Local REST API
+2. Enable "Non-encrypted" (or set API key if you want auth)
+3. Note the port (default: 27123)
+4. Note your vault path
+
+**Step 3: Expose Obsidian to Gateway**
+
+**Option A: SSH Reverse Tunnel (Recommended for testing)**
+
+From your local Linux machine:
+
+```bash
+# Create reverse tunnel from GCP VM to your local Obsidian
+ssh -R 27123:localhost:27123 tarolrr@<GCP_VM_EXTERNAL_IP>
+```
+
+Or using gcloud:
+
+```bash
+gcloud compute ssh tarvis-gateway --zone=us-central1-a -- -R 27123:localhost:27123
+```
+
+Keep this terminal open. The gateway can now access your Obsidian at `http://localhost:27123`.
+
+**Option B: Tailscale (Recommended for persistent access)**
+
+1. Install Tailscale on both your local machine and the GCP VM (see section 14 below)
+2. Configure OpenClaw to use your machine's Tailscale IP:
+   - Find your local machine's Tailscale IP: `tailscale ip -4`
+   - Gateway will access: `http://<your-tailscale-ip>:27123`
+
+**Step 4: Configure OpenClaw Obsidian Skill**
+
+In the Control UI or via config:
+
+```bash
+docker compose exec openclaw-gateway node dist/index.js config set skills.obsidian.enabled true
+docker compose exec openclaw-gateway node dist/index.js config set skills.obsidian.config.apiUrl "http://localhost:27123"
+docker compose exec openclaw-gateway node dist/index.js config set skills.obsidian.config.vaultPath "/path/to/your/vault"
+```
+
+Restart the gateway:
+
+```bash
+docker compose restart openclaw-gateway
+```
+
+### 15. Access from Your Laptop
 
 **Option A: SSH Tunnel (Recommended)**
 
@@ -297,21 +384,26 @@ From your local machine:
 gcloud compute ssh tarvis-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:18789
 ```
 
-Then open the dashboard with the token in the URL:
-
-```
-http://127.0.0.1:18789/#token=3248a37d4253076e3a128bbf12aeec6cb1abf291e3bd3041b45dd72fe52a2249
-```
-
-The token is automatically included in the URL hash parameter. The UI will connect immediately without requiring manual token entry.
-
-**Alternative: Get the tokenized URL from the gateway:**
+Get the tokenized URL from the gateway:
 
 ```bash
 gcloud compute ssh tarvis-gateway --zone=us-central1-a --command="docker exec openclaw-openclaw-gateway-1 node dist/index.js dashboard"
 ```
 
 This prints the complete URL with token included.
+
+Then open the dashboard with the token in the URL.
+
+What you’ll see: “disconnected (1008): pairing required” To approve the device:
+
+```bash
+# List pending requests
+openclaw devices list
+
+# Approve by request ID
+openclaw devices approve <requestId>
+```
+
 
 **Option B: Tailscale (Better for permanent access)**
 
