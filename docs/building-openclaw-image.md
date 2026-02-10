@@ -1,13 +1,14 @@
 # Building OpenClaw Docker Image
 
-This guide covers building the OpenClaw Docker image from source and pushing it to Google Container Registry.
+This guide covers building the OpenClaw Docker image **locally on your machine** and pushing it to Google Container Registry.
 
 ## Prerequisites
 
-- Docker installed
-- `gcloud` CLI configured
-- At least 4GB RAM available for building
-- Google Cloud project with Container Registry enabled
+- **Docker installed locally** (Docker Desktop on Mac/Windows, Docker Engine on Linux)
+- **`gcloud` CLI configured** with authentication
+- **At least 4GB RAM** available on your local machine
+- **Google Cloud project** with Container Registry enabled
+- **20GB free disk space**
 
 ## Why Build From Source?
 
@@ -19,12 +20,17 @@ The pre-built image in the registry should work for most users. Build from sourc
 
 ## Build Environment Requirements
 
-**Minimum System Requirements:**
-- **RAM**: 4GB (e2-medium on GCP)
+**Local Machine Requirements:**
+- **RAM**: 4GB minimum (8GB recommended)
 - **Disk**: 20GB free space
 - **CPU**: 2+ cores recommended
+- **OS**: macOS, Linux, or Windows with WSL2
 
-**Note**: Building on e2-micro (1GB RAM) or e2-small (2GB RAM) will fail due to out-of-memory errors during the `pnpm install` step.
+**Why Build Locally?**
+- No need to provision expensive cloud VMs for building
+- Faster iteration during development
+- Use your local machine's resources efficiently
+- Only deploy the final image to cloud
 
 ## Step 1: Clone OpenClaw Repository
 
@@ -35,12 +41,16 @@ cd openclaw
 
 ## Step 2: Create Dockerfile
 
-The standard OpenClaw Dockerfile works well. Create or verify `Dockerfile`:
+Create `Dockerfile` with `gog` binary for Gmail integration:
 
 ```dockerfile
 FROM node:22-bookworm
 
 RUN apt-get update && apt-get install -y socat && rm -rf /var/lib/apt/lists/*
+
+# Install gog for Gmail integration
+RUN curl -L https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz \
+  | tar -xz -C /usr/local/bin gog && chmod +x /usr/local/bin/gog
 
 WORKDIR /app
 
@@ -62,7 +72,10 @@ ENV NODE_ENV=production
 CMD ["node","dist/index.js"]
 ```
 
-**Note**: The original deployment guide included `gog` binary installation, but this is optional and can be installed separately if needed for Gmail integration.
+**Key Changes:**
+- ✅ Added `gog` binary installation (v0.9.0) for Gmail integration
+- ✅ Correct download URL: `gogcli_0.9.0_linux_amd64.tar.gz`
+- ✅ Extract only the `gog` binary from the tarball
 
 ## Step 3: Create docker-compose.yml
 
@@ -101,19 +114,32 @@ services:
       ]
 ```
 
-## Step 4: Build the Image
+## Step 4: Build the Image Locally
 
 ```bash
+# Build the image
 docker compose build
+
+# Or build directly with docker
+docker build -t openclaw:latest .
 ```
 
-**Build Time**: 5-10 minutes on e2-medium (4GB RAM)
+**Build Time**: 5-10 minutes on a modern laptop
 
 **Expected Output:**
+- Base image pull: ~1-2 minutes (first time only)
 - Package installation: ~2-3 minutes
 - TypeScript compilation: ~2-3 minutes
 - UI build: ~1 minute
-- Image export: ~2-3 minutes
+- Image export: ~1-2 minutes
+
+**Verify Build:**
+```bash
+# Check image size
+docker images openclaw:latest
+
+# Expected size: ~1.5GB
+```
 
 ## Step 5: Enable Google Container Registry
 
@@ -139,12 +165,12 @@ docker tag openclaw:latest gcr.io/${PROJECT_ID}/openclaw:$(date +%Y%m%d)
 ## Step 7: Push to Container Registry
 
 ```bash
-# Push latest tag
+# Push both tags
 docker push gcr.io/${PROJECT_ID}/openclaw:latest
-
-# Push dated tag (for rollback capability)
 docker push gcr.io/${PROJECT_ID}/openclaw:$(date +%Y%m%d)
 ```
+
+**Push Time**: 3-5 minutes depending on your internet connection (image is ~1.5GB)
 
 ## Step 8: Verify Upload
 
@@ -177,22 +203,14 @@ docker compose up -d openclaw-gateway
 
 **Symptom**: Build killed with exit code 137
 
-**Solution**: Upgrade to e2-medium (4GB RAM) or build on a local machine with more RAM:
-
-```bash
-# Stop VM
-gcloud compute instances stop tarvis-gateway --zone=us-central1-a
-
-# Upgrade to e2-medium
-gcloud compute instances set-machine-type tarvis-gateway \
-  --machine-type=e2-medium \
-  --zone=us-central1-a
-
-# Start VM
-gcloud compute instances start tarvis-gateway --zone=us-central1-a
-```
-
-After building, you can downgrade back to e2-small for runtime.
+**Solution**: 
+1. Close other applications to free up RAM
+2. Increase Docker Desktop memory limit (Mac/Windows):
+   - Docker Desktop → Settings → Resources → Memory → Set to 4GB+
+3. On Linux, ensure you have at least 4GB free RAM:
+   ```bash
+   free -h
+   ```
 
 ### Build Fails on pnpm install
 
@@ -213,34 +231,54 @@ After building, you can downgrade back to e2-small for runtime.
 docker image prune -f
 ```
 
+### gog Binary Not Found After Build
+
+**Symptom**: `gog: command not found` when running in container
+
+**Solution**: Verify the Dockerfile extracts only the `gog` binary:
+```dockerfile
+RUN curl -L https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz \
+  | tar -xz -C /usr/local/bin gog && chmod +x /usr/local/bin/gog
+```
+
+Test in running container:
+```bash
+docker compose exec openclaw-gateway gog --version
+```
+
 ## Build Process Fixes
 
-### Issues Encountered During Initial Build
+### Issues Encountered and Resolved
 
 1. **gog Binary Download Failed**
-   - **Issue**: Original guide included downloading `gog` binary from GitHub, but the URL pattern was incorrect
-   - **Fix**: Removed from Dockerfile; can be installed separately if needed for Gmail integration
-   - **Alternative**: Install `gog` manually in running container or use Gmail API directly
+   - **Issue**: Incorrect URL pattern and tarball extraction
+   - **Fix**: Updated to correct URL `gogcli_0.9.0_linux_amd64.tar.gz` and extract only `gog` binary
+   - **Working Command**: 
+     ```bash
+     curl -L https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin gog
+     ```
 
-2. **Memory Requirements Underestimated**
-   - **Issue**: e2-micro (1GB) and e2-small (2GB) both failed with OOM errors
-   - **Fix**: Documented minimum requirement of e2-medium (4GB RAM) for building
-   - **Recommendation**: Build on e2-medium, then downgrade to e2-small for runtime
-
-3. **Docker Compose Build Configuration Missing**
+2. **Docker Compose Build Configuration Missing**
    - **Issue**: Original `docker-compose.yml` referenced image but had no `build:` section
    - **Fix**: Added `build:` configuration with `context` and `dockerfile` parameters
 
+3. **Build Strategy Changed**
+   - **Previous**: Build on cloud VM (requires e2-medium, $27/month)
+   - **Current**: Build locally, push to registry, deploy on e2-small ($13/month)
+   - **Savings**: ~$14/month + faster iteration
+
 ## Cost Optimization
 
-**Build Strategy:**
-1. Use e2-medium (4GB RAM, ~$27/month) for building
-2. Build takes ~10 minutes
-3. Push image to Container Registry
-4. Downgrade to e2-small (2GB RAM, ~$13/month) for runtime
-5. Pull pre-built image on e2-small instance
+**Recommended Build Strategy:**
+1. ✅ Build locally on your machine (free, uses your existing hardware)
+2. ✅ Push image to Container Registry (~$0.03/month for storage)
+3. ✅ Deploy on e2-small (2GB RAM, ~$13/month) for runtime
+4. ✅ Pull pre-built image on deployment
 
-**Cost Savings**: ~$14/month by not keeping e2-medium running 24/7
+**Cost Savings**: 
+- No need for expensive build VMs
+- Total cloud cost: ~$13/month (just runtime VM)
+- Build as often as needed without additional costs
 
 ## Automated Build Pipeline (Optional)
 

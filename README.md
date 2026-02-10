@@ -1,217 +1,218 @@
 # Tarvis
 
-**Tarvis** (from **Jarvis** + **tarolrr**) - Your personal AI assistant powered by OpenClaw.
+**Tarvis** (from **Jarvis** + **tarolrr**) - Your personal AI assistant powered by OpenClaw, running autonomously 24/7 on Google Cloud Platform.
 
 ## Overview
 
-Tarvis is a self-hosted AI assistant that integrates with your daily tools and runs in the background to help manage your digital life.
+Tarvis is a self-hosted AI assistant that integrates with Telegram, Gmail, and Obsidian. It runs as a Docker container on GCP, providing always-on autonomous operation.
 
-## Features
+**Key Features:**
+- 🤖 **AI-Powered**: Uses Anthropic Claude for intelligent responses
+- 💬 **Telegram Integration**: Control via Telegram bot
+- 📧 **Gmail Integration**: AI-powered email monitoring and triage
+- 📝 **Obsidian Integration**: Manage your knowledge base
+- ☁️ **Cloud Deployment**: Runs 24/7 on GCP (~$13/month)
+- 🔒 **Secure**: DM pairing, allowlists, encrypted storage
 
-- **Telegram Integration**: Control Tarvis through Telegram messages
-- **Gmail Integration**: Monitor and manage your inbox with AI-powered email triage
-- **Obsidian Integration**: Manage your notes and knowledge base
-- **Background Service**: Runs as a daemon, always available
-- **Multi-channel Support**: Interact through various messaging platforms
+## Quick Start
+
+```bash
+# 1. Build image locally
+git clone https://github.com/openclaw/openclaw.git
+cd openclaw
+docker build -t openclaw:latest .
+
+# 2. Push to Container Registry
+gcloud auth configure-docker
+docker tag openclaw:latest gcr.io/YOUR_PROJECT_ID/openclaw:latest
+docker push gcr.io/YOUR_PROJECT_ID/openclaw:latest
+
+# 3. Deploy to GCP
+# See docs/gcp-deployment.md for full guide
+```
+
+## Documentation Flow
+
+Follow these guides in order:
+
+### 1. Prerequisites
+**What you need before starting:**
+- Google Cloud account with billing enabled
+- Docker installed locally (for building)
+- `gcloud` CLI installed and configured
+- Telegram account (for bot creation)
+- Anthropic API key (or other AI provider)
+
+**Estimated time:** 15 minutes
+
+### 2. Building the Image
+📖 **Guide:** [`docs/building-openclaw-image.md`](docs/building-openclaw-image.md)
+
+**What you'll do:**
+- Clone OpenClaw repository
+- Build Docker image locally (includes `gog` for Gmail)
+- Push image to Google Container Registry
+
+**Estimated time:** 15-20 minutes (mostly build time)
+
+**Why build locally?**
+- No expensive cloud VMs needed for building
+- Use your local machine's resources
+- Faster iteration during development
+
+### 3. Deploying to GCP
+📖 **Guide:** [`docs/gcp-deployment.md`](docs/gcp-deployment.md)
+
+**What you'll do:**
+- Create GCP project and enable APIs
+- Create e2-small VM (~$13/month)
+- Pull pre-built image from registry
+- Configure environment variables
+- Launch Docker container
+
+**Estimated time:** 20-30 minutes
+
+### 4. Configuration
+📖 **Guides:** 
+- [`docs/integrations.md`](docs/integrations.md) - Telegram, Gmail, Obsidian setup
+- [`docs/configuration.md`](docs/configuration.md) - Advanced configuration options
+- [`docs/security.md`](docs/security.md) - Security best practices
+
+**What you'll do:**
+- Create Telegram bot via @BotFather
+- Run onboarding wizard (AI provider setup)
+- Configure Telegram bot token
+- Set up Gmail integration (optional)
+- Configure Obsidian access (optional)
+
+**Estimated time:** 15-20 minutes
+
+### 5. Running and Using Tarvis
+
+**Access the Control UI:**
+```bash
+# SSH tunnel from your local machine
+gcloud compute ssh tarvis-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:18789
+
+# Open in browser
+open http://127.0.0.1:18789/
+```
+
+**Talk to Tarvis via Telegram:**
+1. Find your bot in Telegram
+2. Send `/start`
+3. Start chatting!
+
+**Check Status:**
+```bash
+# SSH into VM
+gcloud compute ssh tarvis-gateway --zone=us-central1-a
+
+# Check container status
+docker compose ps
+
+# View logs
+docker compose logs -f openclaw-gateway
+```
 
 ## Architecture
 
-Tarvis is built on [OpenClaw](https://openclaw.ai/), an open-source personal AI assistant platform that:
-- Runs on your own hardware (self-hosted)
-- Supports multiple messaging channels simultaneously
-- Provides agent-native capabilities with tool use and memory
-- Offers multi-agent routing and session management
-
-## Prerequisites
-
-- Node.js ≥ 22
-- npm or pnpm
-- Git
-- Google Cloud account (for Gmail integration)
-- Telegram account
-- Tailscale (for secure remote access)
-
-## Deployment Options
-
-Tarvis can run in two modes:
-
-### Option 1: Local Machine (Quick Start)
-Run Tarvis on your local machine for testing and development.
-
-### Option 2: GCP Cloud (Autonomous 24/7)
-Deploy Tarvis to Google Cloud Platform for always-on autonomous operation.
-
-**Recommended**: Start local, then deploy to GCP for production use.
-
-## Local Installation
-
-### 1. Install OpenClaw
-
-```bash
-npm install -g openclaw@latest
+```
+┌─────────────────────────────────────────┐
+│         GCP Compute Engine VM           │
+│         (e2-small, ~$13/month)          │
+│  ┌───────────────────────────────────┐  │
+│  │   Docker Container (OpenClaw)     │  │
+│  │   - Gateway (port 18789)          │  │
+│  │   - Telegram integration          │  │
+│  │   - Gmail integration (gog)       │  │
+│  │   - Persistent storage            │  │
+│  └───────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+           ↓                    ↑
+    [Telegram Bot]      [SSH Tunnel]
+    [Gmail Pub/Sub]     [Your Laptop]
 ```
 
-### 2. Run Onboarding Wizard
+## Cost Breakdown
 
-```bash
-openclaw onboard --install-daemon
-```
+**Monthly Costs:**
+- **VM (e2-small)**: ~$13/month (2 vCPU, 2GB RAM, always-on)
+- **Container Registry**: ~$0.03/month (image storage)
+- **Anthropic API**: Pay-as-you-go (depends on usage)
 
-This will:
-- Set up the OpenClaw Gateway
-- Install the daemon service (systemd on Linux)
-- Guide you through initial configuration
+**Total**: ~$13-15/month + API usage
 
-### 3. Configure Integrations
-
-#### Telegram
-Set your Telegram bot token:
-```bash
-export TELEGRAM_BOT_TOKEN="your-bot-token"
-```
-
-Or add to `~/.openclaw/openclaw.json`:
-```json
-{
-  "channels": {
-    "telegram": {
-      "botToken": "your-bot-token"
-    }
-  }
-}
-```
-
-#### Gmail
-Run the Gmail setup wizard:
-```bash
-openclaw webhooks gmail setup --account your-email@gmail.com
-```
-
-#### Obsidian
-Install the Obsidian skill:
-```bash
-pnpm dlx add-skill https://github.com/openclaw/openclaw/obsidian
-```
-
-### 4. Start the Gateway
-
-```bash
-openclaw gateway --port 18789
-```
-
-Access the Control UI at: http://127.0.0.1:18789/
-
-## GCP Deployment (Autonomous 24/7)
-
-Deploy Tarvis to run autonomously on Google Cloud Platform.
-
-### Quick Deploy
-
-```bash
-./scripts/deploy-gcp.sh
-```
-
-This automated script will:
-1. Create a GCP project
-2. Set up a Compute Engine VM (e2-small, ~$13/month)
-3. Install Docker and OpenClaw
-4. Guide you through configuration
-
-### Manual Deployment
-
-See the comprehensive guide: [docs/gcp-deployment.md](docs/gcp-deployment.md)
-
-### Integrations on GCP
-
-- **Telegram**: Works out of the box (bot connects to Telegram servers)
-- **Gmail**: Requires Pub/Sub setup (automated via wizard)
-- **Obsidian**: Multiple options for remote access (see [scripts/obsidian-remote.md](scripts/obsidian-remote.md))
-
-### Access Your GCP Instance
-
-```bash
-# SSH tunnel to Control UI
-gcloud compute ssh tarvis-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:18789
-
-# Then open: http://127.0.0.1:18789/
-```
-
-Or use Tailscale for permanent access.
-
-## Configuration
-
-Configuration is stored in `~/.openclaw/openclaw.json`. See `docs/configuration.md` for detailed setup options.
-
-## Usage
-
-### Send a Message
-```bash
-openclaw message send --to +1234567890 --message "Hello from Tarvis"
-```
-
-### Talk to the Assistant
-```bash
-openclaw agent --message "What's on my calendar today?" --thinking high
-```
-
-### Check Status
-```bash
-openclaw doctor
-```
+**Build Costs**: $0 (build locally, not on cloud)
 
 ## Project Structure
 
 ```
 tarvis/
-├── README.md                    # This file
-├── QUICKSTART.md               # Quick start guide
-├── NEXT_STEPS.md               # Next steps after setup
-├── docs/                       # Documentation
-│   ├── setup-guide.md         # Detailed local setup
-│   ├── gcp-deployment.md      # GCP deployment guide
-│   ├── building-openclaw-image.md  # Building Docker image from source
-│   ├── configuration.md       # Configuration reference
-│   ├── integrations.md        # Integration guides
-│   └── security.md            # Security best practices
-├── scripts/                    # Helper scripts
-│   ├── install.sh             # Install OpenClaw locally
-│   ├── deploy-gcp.sh          # Deploy to GCP
-│   ├── start.sh               # Start local gateway
-│   ├── status.sh              # Check system status
-│   ├── setup-telegram.sh      # Configure Telegram
-│   └── obsidian-remote.md     # Obsidian remote access guide
-└── .gitignore                 # Git ignore rules
+├── README.md                           # This file
+├── docs/                               # Documentation
+│   ├── building-openclaw-image.md     # Build Docker image locally
+│   ├── gcp-deployment.md              # Deploy to GCP
+│   ├── configuration.md               # Configuration reference
+│   ├── integrations.md                # Telegram, Gmail, Obsidian setup
+│   └── security.md                    # Security best practices
+├── scripts/                            # Helper scripts
+│   ├── deploy-gcp.sh                  # Automated GCP deployment
+│   └── obsidian-remote.md             # Obsidian remote access options
+└── .gitignore                         # Git ignore rules
 ```
-
-## Security
-
-Tarvis runs on your local machine and connects to messaging services. Key security features:
-
-- **DM Pairing**: Unknown senders must be approved before they can interact
-- **Allowlists**: Control who can send messages to your assistant
-- **Local Storage**: All data stays on your machine
-- **Encrypted Connections**: Secure communication with external services
-
-See `docs/security.md` for more details.
 
 ## Troubleshooting
 
-Run the diagnostic tool:
+### Container Won't Start
 ```bash
-openclaw doctor
+# Check logs
+docker compose logs openclaw-gateway
+
+# Common issues:
+# - Missing config: Run onboarding wizard
+# - Wrong tokens: Check .env file
+# - Port conflict: Check if port 18789 is in use
 ```
 
-Check logs:
+### Can't Access Control UI
 ```bash
-journalctl --user -u openclaw -f
+# Verify SSH tunnel is running
+gcloud compute ssh tarvis-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:18789
+
+# Check container is running
+docker compose ps
+```
+
+### Telegram Bot Not Responding
+1. Verify bot token in `~/.openclaw/openclaw.json`
+2. Check container logs for errors
+3. Restart container: `docker compose restart openclaw-gateway`
+
+### Gmail Integration Issues
+```bash
+# Test gog binary
+docker compose exec openclaw-gateway gog --version
+
+# Re-authenticate
+docker compose exec openclaw-gateway gog auth
 ```
 
 ## Resources
 
-- [OpenClaw Documentation](https://docs.openclaw.ai/)
-- [OpenClaw GitHub](https://github.com/openclaw/openclaw)
-- [Telegram Bot Setup](https://docs.openclaw.ai/channels/telegram)
-- [Gmail Integration](https://docs.openclaw.ai/automation/gmail-pubsub)
+- **OpenClaw Documentation**: https://docs.openclaw.ai/
+- **OpenClaw GitHub**: https://github.com/openclaw/openclaw
+- **Telegram Bot Setup**: https://docs.openclaw.ai/channels/telegram
+- **Gmail Integration**: https://docs.openclaw.ai/automation/gmail-pubsub
+
+## Security
+
+- **DM Pairing**: Unknown senders must be approved
+- **Allowlists**: Control who can interact with Tarvis
+- **Encrypted Storage**: Credentials stored securely
+- **SSH-Only Access**: Control UI only accessible via SSH tunnel
+
+See [`docs/security.md`](docs/security.md) for detailed security practices.
 
 ## License
 
