@@ -11,7 +11,7 @@ Tarvis is a self-hosted AI assistant that integrates with Telegram, Gmail, and O
 - 💬 **Telegram Integration**: Control via Telegram bot
 - 📧 **Gmail Integration**: AI-powered email monitoring and triage
 - 📝 **Obsidian Integration**: Manage your knowledge base
-- ☁️ **Cloud Deployment**: Runs 24/7 on GCP (~$13/month)
+- ☁️ **Cloud Deployment**: Runs 24/7 on GCP (~$27/month)
 - 🔒 **Secure**: DM pairing, allowlists, encrypted storage
 
 ## Quick Start
@@ -96,12 +96,11 @@ docker push gcr.io/${PROJECT_ID}/openclaw:$(date +%Y%m%d)
 ### 3. Deploying to GCP
 📖 **Guide:** [`docs/gcp-deployment.md`](docs/gcp-deployment.md)
 
-**What you'll do:**
-- Create GCP project and enable APIs
-- Create e2-small VM (~$13/month)
-- Pull pre-built image from registry
-- Configure environment variables
-- Launch Docker container
+**This automated script will:**
+1. Create a GCP project
+2. Set up a Compute Engine VM (e2-medium, ~$27/month)
+3. Install Docker and OpenClaw
+4. Guide you through configuration
 
 **Estimated time:** 20-30 minutes
 
@@ -153,7 +152,7 @@ docker compose logs -f openclaw-gateway
 ```
 ┌─────────────────────────────────────────┐
 │         GCP Compute Engine VM           │
-│         (e2-small, ~$13/month)          │
+│        (e2-medium, ~$27/month)          │
 │  ┌───────────────────────────────────┐  │
 │  │   Docker Container (OpenClaw)     │  │
 │  │   - Gateway (port 18789)          │  │
@@ -170,13 +169,15 @@ docker compose logs -f openclaw-gateway
 ## Cost Breakdown
 
 **Monthly Costs:**
-- **VM (e2-small)**: ~$13/month (2 vCPU, 2GB RAM, always-on)
+- **VM (e2-medium)**: ~$27/month (2 vCPU, 4GB RAM, always-on)
 - **Container Registry**: ~$0.03/month (image storage)
 - **Anthropic API**: Pay-as-you-go (depends on usage)
 
-**Total**: ~$13-15/month + API usage
+**Total**: ~$27-30/month + API usage
 
 **Build Costs**: $0 (build locally, not on cloud)
+
+**Note**: e2-medium (4GB RAM) is required for stable operation. e2-small (2GB RAM) causes OOM issues.
 
 ## Project Structure
 

@@ -38,10 +38,10 @@ Running Tarvis on GCP provides:
 
 ## Cost Estimate
 
-- **e2-small**: 2 vCPU, 2GB RAM - ~$13/month (recommended for runtime)
-- **e2-medium**: 2 vCPU, 4GB RAM - ~$27/month (only needed for building from source)
+- **e2-small**: 2 vCPU, 2GB RAM - ~$13/month 
+- **e2-medium**: 2 vCPU, 4GB RAM - ~$27/month (recommended for runtime)
 
-**Recommended**: e2-small (2GB RAM) is sufficient when using pre-built images
+**Recommended**: e2-medium (2 vCPU, 4GB RAM) is sufficient when using pre-built images
 
 **Note**: e2-micro (1GB RAM) is NOT recommended as it lacks sufficient memory for OpenClaw
 
@@ -80,7 +80,7 @@ gcloud services enable containerregistry.googleapis.com
 ```bash
 gcloud compute instances create tarvis-gateway \
   --zone=us-central1-a \
-  --machine-type=e2-small \
+  --machine-type=e2-medium \
   --boot-disk-size=20GB \
   --image-family=debian-12 \
   --image-project=debian-cloud \
@@ -90,7 +90,7 @@ gcloud compute instances create tarvis-gateway \
 **VM Specs**:
 - Name: `tarvis-gateway`
 - Zone: `us-central1-a` (change to your preferred region)
-- Machine: `e2-small` (2 vCPU, 2GB RAM)
+- Machine: `e2-medium` (2 vCPU, 4GB RAM)
 - Disk: 20GB SSD
 - OS: Debian 12
 
@@ -227,9 +227,7 @@ cat > ~/.openclaw/openclaw.json << 'EOF'
     "telegram": {
       "botToken": "YOUR_TELEGRAM_BOT_TOKEN",
       "allowFrom": ["tarolrr"],
-      "dm": {
-        "policy": "pairing"
-      }
+      "dmPolicy": "pairing"
     }
   },
   "agents": {
@@ -242,6 +240,7 @@ cat > ~/.openclaw/openclaw.json << 'EOF'
     }
   },
   "gateway": {
+    "mode": "local",
     "port": 18789,
     "auth": {
       "token": "YOUR_GATEWAY_TOKEN"
@@ -255,9 +254,17 @@ Replace:
 - `YOUR_TELEGRAM_BOT_TOKEN`: Get from [@BotFather](https://t.me/botfather)
 - `YOUR_GATEWAY_TOKEN`: Use the token from `.env`
 
-**Note**: Use `gateway.auth.token` instead of the deprecated `gateway.token` (which is auto-migrated on load but should not be used in new configs).
+**Important**: 
+- Set `gateway.mode` to `"local"` - required for gateway to start
+- Use `gateway.auth.token` instead of the deprecated `gateway.token` (which is auto-migrated on load but should not be used in new configs)
 
-Restart the container:
+After saving the config, run doctor to enable Telegram:
+
+```bash
+docker compose exec openclaw-gateway node dist/index.js doctor --fix
+```
+
+Then restart the container:
 ```bash
 docker compose restart openclaw-gateway
 ```
