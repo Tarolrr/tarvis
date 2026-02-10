@@ -299,6 +299,16 @@ gcloud compute ssh tarvis-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:187
 
 Then open: http://127.0.0.1:18789/
 
+**Configure Gateway Token in Control UI:**
+
+When you first access the Control UI, you'll see "disconnected (1008): unauthorized". To fix this:
+
+1. Click the **Settings** icon (⚙️) in the Control UI
+2. Find the **Gateway Token** field
+3. Paste your gateway token: `3248a37d4253076e3a128bbf12aeec6cb1abf291e3bd3041b45dd72fe52a2249`
+4. Click **Save**
+5. The UI will reconnect and show "Connected"
+
 **Option B: Tailscale (Better for permanent access)**
 
 On the VM:
