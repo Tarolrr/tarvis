@@ -176,41 +176,15 @@ EOF
 
 **Save these tokens securely** - you'll need the gateway token for configuration.
 
-### 9. Create Docker Compose Configuration
+### 9. Copy Docker Compose Configuration
 
-Create `docker-compose.yml`:
+Copy the `docker-compose.yml` from the tarvis repository:
 
 ```bash
-cat > docker-compose.yml << 'EOF'
-services:
-  openclaw-gateway:
-    image: ${OPENCLAW_IMAGE}
-    environment:
-      HOME: /home/node
-      TERM: xterm-256color
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
-      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD}
-      XDG_CONFIG_HOME: ${XDG_CONFIG_HOME}
-    volumes:
-      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
-    ports:
-      - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
-      - "127.0.0.1:${OPENCLAW_BRIDGE_PORT:-18790}:18790"
-    init: true
-    restart: unless-stopped
-    command:
-      [
-        "node",
-        "dist/index.js",
-        "gateway",
-        "--bind",
-        "${OPENCLAW_GATEWAY_BIND:-lan}",
-        "--port",
-        "18789",
-      ]
-EOF
+cp ~/tarvis/docker-compose.yml .
 ```
+
+This file is pre-configured with the correct environment variables and volumes.
 
 ### 10. Pull and Launch Pre-built Image
 
@@ -280,6 +254,8 @@ EOF
 Replace:
 - `YOUR_TELEGRAM_BOT_TOKEN`: Get from [@BotFather](https://t.me/botfather)
 - `YOUR_GATEWAY_TOKEN`: Use the token from `.env`
+
+**Note**: Use `gateway.auth.token` instead of the deprecated `gateway.token` (which is auto-migrated on load but should not be used in new configs).
 
 Restart the container:
 ```bash

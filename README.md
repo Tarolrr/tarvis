@@ -17,15 +17,21 @@ Tarvis is a self-hosted AI assistant that integrates with Telegram, Gmail, and O
 ## Quick Start
 
 ```bash
-# 1. Build image locally
+# 1. Clone OpenClaw and build image locally
 git clone https://github.com/openclaw/openclaw.git
 cd openclaw
+cp /path/to/tarvis/Dockerfile .
+cp /path/to/tarvis/docker-compose.yml .
 docker build -t openclaw:latest .
 
 # 2. Push to Container Registry
+gcloud services enable containerregistry.googleapis.com
 gcloud auth configure-docker
-docker tag openclaw:latest gcr.io/YOUR_PROJECT_ID/openclaw:latest
-docker push gcr.io/YOUR_PROJECT_ID/openclaw:latest
+PROJECT_ID=$(gcloud config get-value project)
+docker tag openclaw:latest gcr.io/${PROJECT_ID}/openclaw:latest
+docker tag openclaw:latest gcr.io/${PROJECT_ID}/openclaw:$(date +%Y%m%d)
+docker push gcr.io/${PROJECT_ID}/openclaw:latest
+docker push gcr.io/${PROJECT_ID}/openclaw:$(date +%Y%m%d)
 
 # 3. Deploy to GCP
 # See docs/gcp-deployment.md for full guide
@@ -46,19 +52,46 @@ Follow these guides in order:
 **Estimated time:** 15 minutes
 
 ### 2. Building the Image
-📖 **Guide:** [`docs/building-openclaw-image.md`](docs/building-openclaw-image.md)
 
-**What you'll do:**
-- Clone OpenClaw repository
-- Build Docker image locally (includes `gog` for Gmail)
-- Push image to Google Container Registry
+**Prerequisites:**
+- Docker installed locally (Docker Desktop on Mac/Windows, Docker Engine on Linux)
+- `gcloud` CLI configured with authentication
+- At least 4GB RAM available on your local machine
+- 20GB free disk space
 
-**Estimated time:** 15-20 minutes (mostly build time)
+**Build locally (15-20 minutes):**
+
+```bash
+# Clone OpenClaw
+git clone https://github.com/openclaw/openclaw.git
+cd openclaw
+
+# Copy Dockerfile and docker-compose.yml from tarvis repo
+cp /path/to/tarvis/Dockerfile .
+cp /path/to/tarvis/docker-compose.yml .
+
+# Build image (includes gog binary for Gmail)
+docker build -t openclaw:latest .
+# Or use docker compose
+docker compose build
+
+# Enable Container Registry and authenticate
+gcloud services enable containerregistry.googleapis.com
+gcloud auth configure-docker
+
+# Tag and push to registry
+PROJECT_ID=$(gcloud config get-value project)
+docker tag openclaw:latest gcr.io/${PROJECT_ID}/openclaw:latest
+docker tag openclaw:latest gcr.io/${PROJECT_ID}/openclaw:$(date +%Y%m%d)
+docker push gcr.io/${PROJECT_ID}/openclaw:latest
+docker push gcr.io/${PROJECT_ID}/openclaw:$(date +%Y%m%d)
+```
 
 **Why build locally?**
 - No expensive cloud VMs needed for building
 - Use your local machine's resources
 - Faster iteration during development
+- Cost: $0 (vs ~$27/month for e2-medium build VM)
 
 ### 3. Deploying to GCP
 📖 **Guide:** [`docs/gcp-deployment.md`](docs/gcp-deployment.md)
@@ -150,8 +183,9 @@ docker compose logs -f openclaw-gateway
 ```
 tarvis/
 ├── README.md                           # This file
+├── Dockerfile                          # OpenClaw Docker image with gog binary
+├── docker-compose.yml                  # Docker Compose configuration
 ├── docs/                               # Documentation
-│   ├── building-openclaw-image.md     # Build Docker image locally
 │   ├── gcp-deployment.md              # Deploy to GCP
 │   ├── configuration.md               # Configuration reference
 │   ├── integrations.md                # Telegram, Gmail, Obsidian setup
