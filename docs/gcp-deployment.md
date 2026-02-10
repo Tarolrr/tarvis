@@ -297,8 +297,21 @@ From your local machine:
 gcloud compute ssh tarvis-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:18789
 ```
 
-Then open: http://127.0.0.1:18789/
+Then open the dashboard with the token in the URL:
 
+```
+http://127.0.0.1:18789/#token=3248a37d4253076e3a128bbf12aeec6cb1abf291e3bd3041b45dd72fe52a2249
+```
+
+The token is automatically included in the URL hash parameter. The UI will connect immediately without requiring manual token entry.
+
+**Alternative: Get the tokenized URL from the gateway:**
+
+```bash
+gcloud compute ssh tarvis-gateway --zone=us-central1-a --command="docker exec openclaw-openclaw-gateway-1 node dist/index.js dashboard"
+```
+
+This prints the complete URL with token included.
 
 **Option B: Tailscale (Better for permanent access)**
 
